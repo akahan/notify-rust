@@ -172,6 +172,8 @@ mod macos;
 
 #[cfg(target_os = "windows")]
 mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::*;
 
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdg;

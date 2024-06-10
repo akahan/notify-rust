@@ -34,6 +34,23 @@ impl DerefMut for NotificationHandle {
     }
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct IconType(pub String);
+
+impl From<&str> for IconType {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl Deref for IconType {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
 pub(crate) fn show_notification(notification: &Notification) -> Result<NotificationHandle> {
     mac_notification_sys::Notification::default()
         .title(notification.summary.as_str())

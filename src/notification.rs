@@ -3,15 +3,16 @@ use crate::{
     hints::{CustomHintType, Hint},
     urgency::Urgency,
     xdg,
+    xdg::IconType,
 };
 
 #[cfg(all(unix, not(target_os = "macos"), feature = "images"))]
 use crate::image::Image;
 
 #[cfg(all(unix, target_os = "macos"))]
-use crate::macos;
+use crate::{macos, macos::IconType};
 #[cfg(target_os = "windows")]
-use crate::windows;
+use crate::{windows, windows::IconType};
 
 use crate::{error::*, timeout::Timeout};
 
@@ -60,7 +61,7 @@ pub struct Notification {
     pub body: String,
 
     /// Use a file:// URI or a name in an icon theme, must be compliant freedesktop.org.
-    pub icon: String,
+    pub icon: IconType,
 
     /// Check out `Hint`
     ///
@@ -218,8 +219,8 @@ impl Notification {
     ///
     /// # Platform support
     /// macOS does not have support manually setting the icon. However you can pretend to be another app using [`set_application()`](fn.set_application.html)
-    pub fn icon(&mut self, icon: &str) -> &mut Notification {
-        icon.clone_into(&mut self.icon);
+    pub fn icon<T: Into<IconType> + Clone>(&mut self, icon: T) -> &mut Notification {
+        self.icon = icon.clone().into();
         self
     }
 
@@ -230,7 +231,7 @@ impl Notification {
     /// # Platform support
     /// macOS does not support manually setting the icon. However you can pretend to be another app using [`set_application()`](fn.set_application.html)
     pub fn auto_icon(&mut self) -> &mut Notification {
-        self.icon = exe_name();
+        self.icon = exe_name().into();
         self
     }
 
@@ -476,7 +477,7 @@ impl Default for Notification {
             summary: String::new(),
             subtitle: None,
             body: String::new(),
-            icon: String::new(),
+            icon: IconType::default(),
             hints: HashSet::new(),
             hints_unique: HashMap::new(),
             actions: Vec::new(),
@@ -508,7 +509,7 @@ impl Default for Notification {
             summary: String::new(),
             subtitle: None,
             body: String::new(),
-            icon: String::new(),
+            icon: IconType::default(),
             actions: Vec::new(),
             timeout: Timeout::Default,
             sound_name: Default::default(),

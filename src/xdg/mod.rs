@@ -33,6 +33,23 @@ mod bus;
 // #[cfg(all(feature = "server", unix, not(target_os = "macos")))]
 // pub mod server;
 
+#[derive(Clone, Debug, Default)]
+pub struct IconType(pub String);
+
+impl From<&str> for IconType {
+    fn from(value: &str) -> Self {
+        Self(value.to_string())
+    }
+}
+
+impl Deref for IconType {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.deref()
+    }
+}
+
 #[cfg(not(feature = "debug_namespace"))]
 #[doc(hidden)]
 pub static NOTIFICATION_DEFAULT_BUS: &str = "org.freedesktop.Notifications";

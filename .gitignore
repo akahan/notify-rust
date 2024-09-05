@@ -6,3 +6,4 @@ Cargo.lock
 *.rustfmt
 *.rsx
 main-doc
+.idea/

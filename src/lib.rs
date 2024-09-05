@@ -188,7 +188,7 @@ pub mod server;
 pub use mac_notification_sys::{get_bundle_identifier_or_default, set_application};
 
 #[cfg(target_os = "macos")]
-pub use macos::NotificationHandle;
+pub use macos::{NotificationHandle, IconType};
 
 #[cfg(all(
     any(feature = "dbus", feature = "zbus"),

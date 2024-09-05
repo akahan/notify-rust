@@ -231,7 +231,7 @@ impl Notification {
     /// # Platform support
     /// macOS does not support manually setting the icon. However you can pretend to be another app using [`set_application()`](fn.set_application.html)
     pub fn auto_icon(&mut self) -> &mut Notification {
-        self.icon = exe_name().into();
+        self.icon = exe_name().as_str().into();
         self
     }
 
@@ -494,7 +494,7 @@ impl Default for Notification {
             summary: String::new(),
             subtitle: None,
             body: String::new(),
-            icon: String::new(),
+            icon: IconType::from(""),
             actions: Vec::new(),
             timeout: Timeout::Default,
             sound_name: Default::default(),

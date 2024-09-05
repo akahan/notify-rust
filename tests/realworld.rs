@@ -83,8 +83,8 @@ mod realworld {
         assert_eq!(notification.body, "foo");
 
         let mut notification = Notification::new();
-        notification.icon = "foo".to_string();
-        assert_eq!(notification.icon, "foo");
+        notification.icon = IconType::from("foo");
+        assert_eq!(notification.icon.0, "foo".to_string());
 
         let mut notification = Notification::new();
         notification.summary = "foo".to_string();

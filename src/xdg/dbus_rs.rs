@@ -4,10 +4,8 @@ use dbus::{
     Message,
 };
 
-use super::{
-    bus::NotificationBus, ActionResponse, ActionResponseHandler, CloseReason,
-    NOTIFICATION_INTERFACE,
-};
+use super::{bus::NotificationBus, NOTIFICATION_INTERFACE};
+use crate::response::{NotificationResponse, ResponseHandler};
 
 use crate::{
     error::*,
@@ -16,103 +14,10 @@ use crate::{
     xdg::{ServerInformation, NOTIFICATION_OBJECTPATH},
 };
 
-pub mod bus {
+pub mod bus;
 
-    use crate::xdg::NOTIFICATION_DEFAULT_BUS;
-
-    fn skip_first_slash(s: &str) -> &str {
-        if let Some('/') = s.chars().next() {
-            &s[1..]
-        } else {
-            s
-        }
-    }
-
-    use std::path::PathBuf;
-
-    type BusNameType = dbus::strings::BusName<'static>;
-
-    #[derive(Clone, Debug)]
-    pub struct NotificationBus(BusNameType);
-
-    impl Default for NotificationBus {
-        fn default() -> Self {
-            Self(dbus::strings::BusName::from_slice(NOTIFICATION_DEFAULT_BUS).unwrap())
-        }
-    }
-
-    impl NotificationBus {
-        fn namespaced_custom(custom_path: &str) -> Option<String> {
-            // abusing path for semantic join
-            skip_first_slash(
-                PathBuf::from("/de/hoodie/Notification")
-                    .join(custom_path)
-                    .to_str()?,
-            )
-            .replace('/', ".")
-            .into()
-        }
-
-        pub fn custom(custom_path: &str) -> Option<Self> {
-            let name = dbus::strings::BusName::new(Self::namespaced_custom(custom_path)?).ok()?;
-            Some(Self(name))
-        }
-
-        pub fn into_name(self) -> BusNameType {
-            self.0
-        }
-    }
-}
-
-/// A handle to a shown notification.
-///
-/// This keeps a connection alive to ensure actions work on certain desktops.
-#[derive(Debug)]
-pub struct DbusNotificationHandle {
-    pub(crate) id: u32,
-    pub(crate) connection: Connection,
-    pub(crate) notification: Notification,
-}
-
-impl DbusNotificationHandle {
-    pub(crate) fn new(
-        id: u32,
-        connection: Connection,
-        notification: Notification,
-    ) -> DbusNotificationHandle {
-        DbusNotificationHandle {
-            id,
-            connection,
-            notification,
-        }
-    }
-
-    pub fn wait_for_action(self, invocation_closure: impl ActionResponseHandler) {
-        wait_for_action_signal(&self.connection, self.id, invocation_closure);
-    }
-
-    pub fn close(self) {
-        let mut message = build_message("CloseNotification", Default::default());
-        message.append_items(&[self.id.into()]);
-        let _ = self.connection.send(message); // If closing fails there's nothing we could do anyway
-    }
-
-    pub fn on_close<F>(self, closure: F)
-    where
-        F: FnOnce(CloseReason),
-    {
-        self.wait_for_action(|action: &ActionResponse| {
-            if let ActionResponse::Closed(reason) = action {
-                closure(*reason);
-            }
-        });
-    }
-
-    pub fn update(&mut self) {
-        self.id = send_notification_via_connection(&self.notification, self.id, &self.connection)
-            .unwrap();
-    }
-}
+mod handle;
+pub use handle::DbusNotificationHandle;
 
 pub fn send_notification_via_connection(
     notification: &Notification,
@@ -257,25 +162,25 @@ pub fn get_server_information() -> Result<ServerInformation> {
 /// Listens for the `ActionInvoked(UInt32, String)` Signal.
 ///
 /// No need to use this, check out `Notification::show_and_wait_for_action(FnOnce(action:&str))`
-pub fn handle_action(id: u32, func: impl ActionResponseHandler) {
-    let connection = Connection::get_private(BusType::Session).unwrap();
-    wait_for_action_signal(&connection, id, func);
+pub fn handle_action(id: u32, func: impl ResponseHandler) -> Result<()> {
+    let connection = Connection::get_private(BusType::Session)?;
+    wait_for_action_signal(&connection, id, func)
 }
 
 // Listens for the `ActionInvoked(UInt32, String)` signal.
-fn wait_for_action_signal(connection: &Connection, id: u32, handler: impl ActionResponseHandler) {
-    connection
-        .add_match(&format!(
-            "interface='{}',member='ActionInvoked'",
-            NOTIFICATION_INTERFACE
-        ))
-        .unwrap();
-    connection
-        .add_match(&format!(
-            "interface='{}',member='NotificationClosed'",
-            NOTIFICATION_INTERFACE
-        ))
-        .unwrap();
+fn wait_for_action_signal(
+    connection: &Connection,
+    id: u32,
+    handler: impl ResponseHandler,
+) -> Result<()> {
+    connection.add_match(&format!(
+        "interface='{}',member='ActionInvoked'",
+        NOTIFICATION_INTERFACE
+    ))?;
+    connection.add_match(&format!(
+        "interface='{}',member='NotificationClosed'",
+        NOTIFICATION_INTERFACE
+    ))?;
 
     for item in connection.iter(1000) {
         if let ConnectionItem::Signal(message) = item {
@@ -302,7 +207,12 @@ fn wait_for_action_signal(connection: &Connection, id: u32, handler: impl Action
                         (&items[0], &items[1])
                     {
                         if nid == id {
-                            handler.call(&ActionResponse::Custom(action));
+                            let response = if action == "default" {
+                                NotificationResponse::Default
+                            } else {
+                                NotificationResponse::Action(action.to_string())
+                            };
+                            handler.call(&response);
                             break;
                         }
                     }
@@ -316,7 +226,7 @@ fn wait_for_action_signal(connection: &Connection, id: u32, handler: impl Action
                         (&items[0], &items[1])
                     {
                         if nid == id {
-                            handler.call(&ActionResponse::Closed(reason.into()));
+                            handler.call(&NotificationResponse::Closed(reason.into()));
                             break;
                         }
                     }
@@ -325,4 +235,5 @@ fn wait_for_action_signal(connection: &Connection, id: u32, handler: impl Action
             }
         }
     }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-name: Continuous Integration
+name: Build Platforms
 on:
   push:
     branches:
@@ -6,21 +6,16 @@ on:
   pull_request:
 
 jobs:
-  pr_check:
-      name: Pull Request Check
-      uses: ./.github/workflows/pull-request.yml
-
   linux:
     name: linux
-    needs: pr_check
     runs-on: ubuntu-latest
     strategy:
       #fail-fast: true
       matrix:
         rust:
           - stable
-          - beta 
-          - stable minus 2 releases
+          - beta
+          - stable minus 5 releases
         feature:
           - d
           - d,images
@@ -57,16 +52,25 @@ jobs:
       - name: clippy (default features)
         run: cargo clippy
 
+  nightly:
+    name: nightly (zbus compile check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo check --no-default-features --features z
+      - run: cargo check --no-default-features --features z-with-tokio
+
   windows:
     name: windows
-    needs: pr_check
     runs-on: windows-latest
     strategy:
       matrix:
         rust:
           - stable
-          - beta 
-          - stable minus 6 releases
+          - beta
+          - stable minus 5 releases
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -84,17 +88,18 @@ jobs:
       - name: clippy (default features)
         run: cargo clippy -- -D warnings
 
-
   macos:
     name: macos
-    needs: pr_check
     runs-on: macos-latest
     strategy:
       matrix:
         rust:
           - stable
-          - beta 
-          - stable minus 6 releases
+          - beta
+          - stable minus 5 releases
+        features:
+          - ""
+          - --features preview-macos-un
     steps:
       - uses: actions/checkout@v4
       - uses: Swatinem/rust-cache@v2
@@ -103,11 +108,11 @@ jobs:
           toolchain: ${{ matrix.rust }}
           components: clippy, rustfmt
 
-      - name: check (default features)
-        run: cargo check
+      - name: check
+        run: cargo check ${{ matrix.features }}
 
-      - name: test (default features)
-        run: cargo test --no-run
+      - name: test
+        run: cargo test --no-run ${{ matrix.features }}
 
-      - name: clippy (default features)
-        run: cargo clippy -- -D warnings
+      - name: clippy
+        run: cargo clippy ${{ matrix.features }} -- -D warnings

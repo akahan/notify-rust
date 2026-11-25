@@ -47,7 +47,7 @@ impl From<Duration> for Timeout {
     fn from(duration: Duration) -> Timeout {
         if duration.is_zero() {
             Timeout::Never
-        } else if duration.as_millis() > u32::MAX.into() {
+        } else if duration.as_millis() > u32::MAX as u128 {
             Timeout::Default
         } else {
             Timeout::Milliseconds(duration.as_millis().try_into().unwrap_or(u32::MAX))
@@ -77,14 +77,17 @@ impl FromStr for Timeout {
     }
 }
 
+#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
 pub struct TimeoutMessage(Timeout);
 
+#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
 impl From<Timeout> for TimeoutMessage {
     fn from(hint: Timeout) -> Self {
         TimeoutMessage(hint)
     }
 }
 
+#[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
 impl std::ops::Deref for TimeoutMessage {
     type Target = Timeout;
 

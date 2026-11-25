@@ -6,10 +6,10 @@ use zbus::zvariant;
 #[cfg(all(unix, not(target_os = "macos")))]
 pub(crate) mod message;
 
-#[cfg(all(feature = "images", any(feature = "dbus", feature = "zbus"), unix, not(target_os = "macos")))]
+#[cfg(all(feature = "images_no_default_features", any(feature = "dbus", feature = "zbus"), unix, not(target_os = "macos")))]
 use crate::image::Image;
 
-#[cfg(all(feature = "images", feature = "zbus", unix, not(target_os = "macos")))]
+#[cfg(all(feature = "images_no_default_features", feature = "zbus", unix, not(target_os = "macos")))]
 use crate::image::image_spec_str;
 use crate::Urgency;
 
@@ -25,18 +25,17 @@ pub(crate) enum CustomHintType {
     String,
 }
 
-/// `Hints` allow you to pass extra information to the server.
+/// Hints allow you to pass extra information to the notification server.
 ///
-/// Many of these are standardized by either:
+/// Many of these are standardized by:
 ///
-/// * <http://www.galago-project.org/specs/notification/0.9/x344.html>
-/// * <https://developer.gnome.org/notification-spec/#hints>
+/// * <https://specifications.freedesktop.org/notification-spec/latest/hints.html>
 ///
-/// Which of these are actually implemented depends strongly on the Notification server you talk to.
-/// Usually the [`get_capabilities()`](`crate::get_capabilities`) gives some clues, but the standards usually mention much more
+/// Which hints are actually implemented depends strongly on the notification server you talk to.
+/// Usually [`get_capabilities()`](`crate::get_capabilities`) gives some clues, but the standard usually mentions much more
 /// than is actually available.
 ///
-/// you pass these to [`Notification::hint`]
+/// Pass these to [`Notification::hint`].
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
 pub enum Hint {
     /// If true, server may interpret action identifiers as named icons and display those.
@@ -44,16 +43,15 @@ pub enum Hint {
 
     /// Check out:
     ///
-    /// * <http://www.galago-project.org/specs/notification/0.9/x211.html>
-    /// * <https://developer.gnome.org/notification-spec/#categories>
+    /// * <https://specifications.freedesktop.org/notification-spec/latest/hints.html>
     Category(String),
 
-    /// Name of the `DesktopEntry` representing the calling application. In case of "firefox.desktop"
-    /// use "firefox". May be used to retrieve the correct icon.
+    /// Name of the `DesktopEntry` representing the calling application.
+    /// In case of `"firefox.desktop"` use `"firefox"`. May be used to retrieve the correct icon.
     DesktopEntry(String),
 
     /// Image as raw data
-    #[cfg(all(feature = "images", unix, not(target_os = "macos")))]
+    #[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
     ImageData(Image),
 
     /// Display the image at this path.
@@ -65,13 +63,14 @@ pub enum Hint {
     /// Play the sound at this path.
     SoundFile(String),
 
-    /// A themeable named sound from the freedesktop.org [sound naming specification](http://0pointer.de/public/sound-naming-spec.html) to play when the notification pops up. Similar to icon-name, only for sounds. An example would be "message-new-instant".
+    /// A themeable named sound from the freedesktop.org [sound naming specification](http://0pointer.de/public/sound-naming-spec.html) to play when the notification pops up.
+    /// Similar to icon-name, but for sounds. An example would be `"message-new-instant"`.
     SoundName(String),
 
     /// Suppress the notification sound.
     SuppressSound(bool),
 
-    /// When set the server will treat the notification as transient and by-pass the server's persistence capability, if it should exist.
+    /// When set, the server will treat the notification as transient and bypass the server's persistence capability, if it exists.
     Transient(bool),
 
     /// Lets the notification point to a certain 'x' position on the screen.
@@ -82,7 +81,7 @@ pub enum Hint {
     /// Requires `X`.
     Y(i32),
 
-    /// Pass me a Urgency, either Low, Normal or Critical
+    /// Pass a [`Urgency`](crate::Urgency), either `Low`, `Normal`, or `Critical`.
     Urgency(Urgency),
 
     /// If you want to pass something entirely different.
@@ -91,7 +90,7 @@ pub enum Hint {
     /// A custom numerical (integer) hint
     CustomInt(String, i32),
 
-    /// Only used by this `NotificationServer` implementation
+    /// Only used by this `NotificationServer` implementation.
     Invalid // TODO find a better solution to this
 }
 
@@ -126,7 +125,7 @@ impl Hint {
         }
     }
 
-    /// convenience converting a name and value into a hint
+    /// Convenience function for converting a name and value into a hint.
     pub fn from_key_val(name: &str, value: &str) -> Result<Hint, String> {
         match (name,value){
             (constants::ACTION_ICONS,val)    => val.parse::<bool>().map(Hint::ActionIcons).map_err(|e|e.to_string()),
@@ -183,7 +182,7 @@ impl<'a> From<&'a Hint> for (&'a str, zvariant::Value<'a>) {
             Hint::Category(value)          => (CATEGORY       , zvariant::Value::Str(value.as_str().into())),
             Hint::DesktopEntry(value)      => (DESKTOP_ENTRY  , zvariant::Value::Str(value.as_str().into())),
 
-            #[cfg(all(feature = "zbus", feature = "images", unix, not(target_os = "macos")))]
+            #[cfg(all(feature = "zbus", feature = "images_no_default_features", unix, not(target_os = "macos")))]
             //Hint::ImageData(image)         => (image_spec(*crate::SPEC_VERSION).as_str(), ImagePayload::from(*image).into()),
             Hint::ImageData(image)         => (
                 image_spec_str(*crate::SPEC_VERSION),

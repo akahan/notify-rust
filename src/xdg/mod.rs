@@ -9,6 +9,11 @@ use zbus::{block_on, zvariant};
 
 use crate::{error::*, notification::Notification};
 
+pub use crate::response::{
+    ActionResponse, CloseHandler, CloseReason, NotificationResponse,
+    ResponseHandler as ActionResponseHandler,
+};
+
 use std::ops::{Deref, DerefMut};
 
 #[cfg(feature = "dbus")]
@@ -78,7 +83,7 @@ enum NotificationHandleInner {
 
 /// A handle to a shown notification.
 ///
-/// This keeps a connection alive to ensure actions work on certain desktops.
+/// Keeps a connection alive to ensure actions work on certain desktops.
 #[derive(Debug)]
 pub struct NotificationHandle {
     inner: NotificationHandleInner,
@@ -117,22 +122,93 @@ impl NotificationHandle {
         match self.inner {
             #[cfg(feature = "dbus")]
             NotificationHandleInner::Dbus(inner) => {
-                inner.wait_for_action(|action: &ActionResponse| match action {
-                    ActionResponse::Custom(action) => invocation_closure(action),
-                    ActionResponse::Closed(_reason) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
+                let _ = inner.wait_for_action(|response: &NotificationResponse| match response {
+                    NotificationResponse::Default => invocation_closure("default"),
+                    NotificationResponse::Action(ref action) => invocation_closure(action),
+                    NotificationResponse::Reply(_) => { /* XDG does not support inline replies */ }
+                    NotificationResponse::Closed(_) => invocation_closure("__closed"),
                 });
             }
 
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(inner) => {
                 block_on(
-                    inner.wait_for_action(|action: &ActionResponse| match action {
-                        ActionResponse::Custom(action) => invocation_closure(action),
-                        ActionResponse::Closed(_reason) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
+                    inner.wait_for_action(|response: &NotificationResponse| match response {
+                        NotificationResponse::Default => invocation_closure("default"),
+                        NotificationResponse::Action(ref action) => invocation_closure(action),
+                        NotificationResponse::Reply(_) => { /* XDG does not support inline replies */ }
+                        NotificationResponse::Closed(_) => invocation_closure("__closed"), // FIXME: remove backward compatibility with 5.0
                     }),
                 );
             }
         };
+    }
+
+    /// Waits for the user to act on a notification and then calls `handler`
+    /// with a typed [`NotificationResponse`].
+    ///
+    /// This is the typed, forward-compatible replacement for [`wait_for_action`](Self::wait_for_action).
+    pub fn wait_for_response(self, handler: impl ActionResponseHandler) -> Result<()> {
+        match self.inner {
+            #[cfg(feature = "dbus")]
+            NotificationHandleInner::Dbus(inner) => inner.wait_for_action(handler),
+            #[cfg(feature = "zbus")]
+            NotificationHandleInner::Zbus(inner) => {
+                block_on(inner.wait_for_action(handler));
+                Ok(())
+            }
+        }
+    }
+
+    /// Returns a future that waits for the user to act on a notification and then calls
+    /// `invocation_closure` with the name of the corresponding action.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called with a [`Dbus`](DbusStack::Dbus) backend.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// # use notify_rust::*;
+    /// # use async_std::task::sleep;
+    /// # use std::time::Duration;
+    /// # use futures_lite::future::zip;
+    /// # async fn wait_for_action_async_example() -> Result<(), Box<dyn std::error::Error>> {
+    /// let handle: NotificationHandle = Notification::new()
+    ///     .action("do-stuff", "my fancy button")
+    ///     .show_async()
+    ///     .await?;
+    ///
+    /// let wait_future = handle.wait_for_action_async(|action| {
+    ///     // handle action
+    /// #   let _ = action;
+    /// });
+    /// let close_future = async {
+    ///     sleep(Duration::from_secs(5)).await;
+    ///     handle.close_async();
+    /// };
+    ///
+    /// // run both futures concurrently
+    /// # let _ =
+    /// zip(wait_future, close_future).await;
+    /// # Ok(())
+    /// # }
+    /// ```
+    // TODO: make this consume `self` in 5.0
+    #[cfg(feature = "zbus")]
+    pub async fn wait_for_action_async<F>(&self, invocation_closure: F)
+    where
+        F: FnOnce(&NotificationResponse),
+    {
+        match &self.inner {
+            #[cfg(feature = "dbus")]
+            NotificationHandleInner::Dbus(_) => {
+                unimplemented!("async methods are not supported with the `dbus` backend");
+            }
+            #[cfg(feature = "zbus")]
+            NotificationHandleInner::Zbus(inner) => inner.wait_for_action(invocation_closure).await,
+        }
     }
 
     /// Manually close the notification
@@ -161,6 +237,23 @@ impl NotificationHandle {
         }
     }
 
+    /// Async version of [`close`](Self::close).
+    ///
+    /// # Panics
+    ///
+    /// Panics if called with a [`Dbus`](DbusStack::Dbus) backend.
+    #[cfg(feature = "zbus")]
+    pub async fn close_async(&self) {
+        match &self.inner {
+            #[cfg(feature = "dbus")]
+            NotificationHandleInner::Dbus(_) => {
+                unimplemented!("async methods are not supported with the `dbus` backend");
+            }
+            #[cfg(feature = "zbus")]
+            NotificationHandleInner::Zbus(inner) => inner.close().await,
+        }
+    }
+
     /// Executes a closure after the notification has closed.
     ///
     /// ## Example 1: *I don't care about why it closed* (the good ole API)
@@ -186,20 +279,24 @@ impl NotificationHandle {
     ///                    .unwrap()
     ///                    .on_close(|reason| println!("closed: {:?}", reason));
     /// ```
+    // #[deprecated(
+    //     since = "4.18.0",
+    //     note = "Use `wait_for_response()` and match on `ActionResponse::Closed` instead"
+    // )]
     pub fn on_close<A>(self, handler: impl CloseHandler<A>) {
         match self.inner {
             #[cfg(feature = "dbus")]
             NotificationHandleInner::Dbus(inner) => {
-                inner.wait_for_action(|action: &ActionResponse| {
-                    if let ActionResponse::Closed(reason) = action {
+                let _ = inner.wait_for_action(|action: &NotificationResponse| {
+                    if let NotificationResponse::Closed(reason) = action {
                         handler.call(*reason);
                     }
                 });
             }
             #[cfg(feature = "zbus")]
             NotificationHandleInner::Zbus(inner) => {
-                block_on(inner.wait_for_action(|action: &ActionResponse| {
-                    if let ActionResponse::Closed(reason) = action {
+                block_on(inner.wait_for_action(|action: &NotificationResponse| {
+                    if let NotificationResponse::Closed(reason) = action {
                         handler.call(*reason);
                     }
                 }));
@@ -221,13 +318,13 @@ impl NotificationHandle {
     /// notification.summary("Latest News (Correction)")
     ///             .body("Bayern Dortmund 3:3");
     ///
-    /// notification.update();
+    /// notification.update().unwrap();
     /// ```
     /// Watch out for different implementations of the
     /// notification server! On plasma5 for instance, you should also change the appname, so the old
     /// message is really replaced and not just amended. Xfce behaves well, all others have not
     /// been tested by the developer.
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> Result<()> {
         match self.inner {
             #[cfg(feature = "dbus")]
             NotificationHandleInner::Dbus(ref mut inner) => inner.update(),
@@ -236,7 +333,7 @@ impl NotificationHandle {
         }
     }
 
-    /// Returns the Handle's id.
+    /// Returns the handle's id.
     pub fn id(&self) -> u32 {
         match self.inner {
             #[cfg(feature = "dbus")]
@@ -247,7 +344,7 @@ impl NotificationHandle {
     }
 }
 
-/// Required for `DerefMut`
+/// Required for [`DerefMut`].
 impl Deref for NotificationHandle {
     type Target = Notification;
 
@@ -261,7 +358,7 @@ impl Deref for NotificationHandle {
     }
 }
 
-/// Allow you to easily modify notification properties
+/// Allows easy modification of notification properties.
 impl DerefMut for NotificationHandle {
     fn deref_mut(&mut self) -> &mut Notification {
         match self.inner {
@@ -318,12 +415,12 @@ impl From<zbus_rs::ZbusNotificationHandle> for NotificationHandle {
 ))]
 compile_error!("you have to build with either zbus or dbus turned on");
 
-/// Which Dbus implementation are we using?
+/// Which D-Bus implementation is in use.
 #[derive(Copy, Clone, Debug)]
 pub enum DbusStack {
-    /// using [dbus-rs](https://docs.rs/dbus-rs)
+    /// Using [dbus-rs](https://docs.rs/dbus-rs).
     Dbus,
-    /// using [zbus](https://docs.rs/zbus)
+    /// Using [zbus](https://docs.rs/zbus).
     Zbus,
 }
 
@@ -335,7 +432,7 @@ pub(crate) fn show_notification(notification: &Notification) -> Result<Notificat
     block_on(zbus_rs::connect_and_send_notification(notification)).map(Into::into)
 }
 
-#[cfg(all(feature = "async", feature = "zbus"))]
+#[cfg(feature = "zbus")]
 pub(crate) async fn show_notification_async(
     notification: &Notification,
 ) -> Result<NotificationHandle> {
@@ -344,7 +441,7 @@ pub(crate) async fn show_notification_async(
         .map(Into::into)
 }
 
-#[cfg(all(feature = "async", feature = "zbus"))]
+#[cfg(feature = "zbus")]
 pub(crate) async fn show_notification_async_at_bus(
     notification: &Notification,
     bus: NotificationBus,
@@ -368,7 +465,7 @@ pub(crate) fn show_notification(notification: &Notification) -> Result<Notificat
     }
 }
 
-/// Get the currently used [`DbusStack`]
+/// Get the currently active [`DbusStack`].
 ///
 /// (zbus only)
 #[cfg(all(feature = "zbus", not(feature = "dbus")))]
@@ -376,7 +473,7 @@ pub fn dbus_stack() -> Option<DbusStack> {
     Some(DbusStack::Zbus)
 }
 
-/// Get the currently used [`DbusStack`]
+/// Get the currently active [`DbusStack`].
 ///
 /// (dbus-rs only)
 #[cfg(all(feature = "dbus", not(feature = "zbus")))]
@@ -384,9 +481,9 @@ pub fn dbus_stack() -> Option<DbusStack> {
     Some(DbusStack::Dbus)
 }
 
-/// Get the currently used [`DbusStack`]
+/// Get the currently active [`DbusStack`].
 ///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
+/// Both dbus-rs and zbus are compiled in; switch via the `$DBUSRS` environment variable.
 #[cfg(all(feature = "dbus", feature = "zbus"))]
 pub fn dbus_stack() -> Option<DbusStack> {
     Some(if std::env::var(DBUS_SWITCH_VAR).is_ok() {
@@ -396,15 +493,15 @@ pub fn dbus_stack() -> Option<DbusStack> {
     })
 }
 
-/// Get the currently used [`DbusStack`]
+/// Get the currently active [`DbusStack`].
 ///
-/// neither zbus nor dbus-rs are configured
+/// Neither `zbus` nor `dbus-rs` are configured; always returns `None`.
 #[cfg(all(not(feature = "dbus"), not(feature = "zbus")))]
 pub fn dbus_stack() -> Option<DbusStack> {
     None
 }
 
-/// Get list of all capabilities of the running notification server.
+/// Returns a list of all capabilities of the running notification server.
 ///
 /// (zbus only)
 #[cfg(all(feature = "zbus", not(feature = "dbus")))]
@@ -412,7 +509,7 @@ pub fn get_capabilities() -> Result<Vec<String>> {
     block_on(zbus_rs::get_capabilities())
 }
 
-/// Get list of all capabilities of the running notification server.
+/// Returns a list of all capabilities of the running notification server.
 ///
 /// (dbus-rs only)
 #[cfg(all(feature = "dbus", not(feature = "zbus")))]
@@ -420,9 +517,9 @@ pub fn get_capabilities() -> Result<Vec<String>> {
     dbus_rs::get_capabilities()
 }
 
-/// Get list of all capabilities of the running notification server.
+/// Returns a list of all capabilities of the running notification server.
 ///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
+/// Both dbus-rs and zbus are compiled in; switch via the `$DBUSRS` environment variable.
 #[cfg(all(feature = "dbus", feature = "zbus"))]
 pub fn get_capabilities() -> Result<Vec<String>> {
     if std::env::var(DBUS_SWITCH_VAR).is_ok() {
@@ -432,10 +529,9 @@ pub fn get_capabilities() -> Result<Vec<String>> {
     }
 }
 
-/// Returns a struct containing `ServerInformation`.
+/// Returns a [`ServerInformation`] struct describing the running notification server.
 ///
-/// This struct contains `name`, `vendor`, `version` and `spec_version` of the notification server
-/// running.
+/// The struct contains `name`, `vendor`, `version`, and `spec_version`.
 ///
 /// (zbus only)
 #[cfg(all(feature = "zbus", not(feature = "dbus")))]
@@ -443,10 +539,9 @@ pub fn get_server_information() -> Result<ServerInformation> {
     block_on(zbus_rs::get_server_information())
 }
 
-/// Returns a struct containing `ServerInformation`.
+/// Returns a [`ServerInformation`] struct describing the running notification server.
 ///
-/// This struct contains `name`, `vendor`, `version` and `spec_version` of the notification server
-/// running.
+/// The struct contains `name`, `vendor`, `version`, and `spec_version`.
 ///
 /// (dbus-rs only)
 #[cfg(all(feature = "dbus", not(feature = "zbus")))]
@@ -454,12 +549,11 @@ pub fn get_server_information() -> Result<ServerInformation> {
     dbus_rs::get_server_information()
 }
 
-/// Returns a struct containing `ServerInformation`.
+/// Returns a [`ServerInformation`] struct describing the running notification server.
 ///
-/// This struct contains `name`, `vendor`, `version` and `spec_version` of the notification server
-/// running.
+/// The struct contains `name`, `vendor`, `version`, and `spec_version`.
 ///
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
+/// Both dbus-rs and zbus are compiled in; switch via the `$DBUSRS` environment variable.
 #[cfg(all(feature = "dbus", feature = "zbus"))]
 pub fn get_server_information() -> Result<ServerInformation> {
     if std::env::var(DBUS_SWITCH_VAR).is_ok() {
@@ -469,7 +563,7 @@ pub fn get_server_information() -> Result<ServerInformation> {
     }
 }
 
-/// Return value of `get_server_information()`.
+/// Return value of [`get_server_information()`].
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "zbus", derive(zvariant::Type))]
@@ -484,139 +578,71 @@ pub struct ServerInformation {
     pub spec_version: String,
 }
 
-/// Strictly internal.
-/// The NotificationServer implemented here exposes a "Stop" function.
-/// stops the notification server
-#[cfg(all(feature = "server", unix, not(target_os = "macos")))]
-#[doc(hidden)]
-pub fn stop_server() {
-    #[cfg(feature = "dbus")]
-    dbus_rs::stop_server()
-}
+// /// Strictly internal.
+// /// The NotificationServer implemented here exposes a "Stop" function.
+// /// stops the notification server
+// #[cfg(all(feature = "server", unix, not(target_os = "macos")))]
+// #[doc(hidden)]
+// pub fn stop_server() {
+//     #[cfg(feature = "dbus")]
+//     dbus_rs::stop_server()
+// }
 
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
+/// Listens for the `ActionInvoked(UInt32, String)` signal.
 ///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
+/// Prefer [`NotificationHandle::wait_for_action`] instead.
 /// (xdg only)
 #[cfg(all(feature = "zbus", not(feature = "dbus")))]
 // #[deprecated(note="please use [`NotificationHandle::wait_for_action`]")]
-pub fn handle_action<F>(id: u32, func: F)
+pub fn handle_action<F>(id: u32, func: F) -> Result<()>
 where
-    F: FnOnce(&ActionResponse),
+    F: FnOnce(&ActionResponse<'_>),
 {
-    block_on(zbus_rs::handle_action(id, func));
+    block_on(zbus_rs::handle_action(id, action_response_adapter(func)));
+    Ok(())
 }
 
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
+/// Listens for the `ActionInvoked(UInt32, String)` signal.
 ///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
+/// Prefer [`NotificationHandle::wait_for_action`] instead.
 /// (xdg only)
 #[cfg(all(feature = "dbus", not(feature = "zbus")))]
 // #[deprecated(note="please use `NotificationHandle::wait_for_action`")]
-pub fn handle_action<F>(id: u32, func: F)
+pub fn handle_action<F>(id: u32, func: F) -> Result<()>
 where
-    F: FnOnce(&ActionResponse),
+    F: FnOnce(&ActionResponse<'_>),
 {
-    dbus_rs::handle_action(id, func);
+    dbus_rs::handle_action(id, action_response_adapter(func))
 }
 
-/// Listens for the `ActionInvoked(UInt32, String)` Signal.
+/// Listens for the `ActionInvoked(UInt32, String)` signal.
 ///
-/// No need to use this, check out [`NotificationHandle::wait_for_action`]
-/// both dbus-rs and zbus, switch via `$ZBUS_NOTIFICATION`
+/// Prefer [`NotificationHandle::wait_for_action`] instead.
+/// Both dbus-rs and zbus are compiled in; switch via the `$DBUSRS` environment variable.
 #[cfg(all(feature = "dbus", feature = "zbus"))]
 // #[deprecated(note="please use `NotificationHandle::wait_for_action`")]
-pub fn handle_action<F>(id: u32, func: F)
+pub fn handle_action<F>(id: u32, func: F) -> Result<()>
 where
-    F: FnOnce(&ActionResponse),
+    F: FnOnce(&ActionResponse<'_>),
 {
     if std::env::var(DBUS_SWITCH_VAR).is_ok() {
-        dbus_rs::handle_action(id, func);
+        dbus_rs::handle_action(id, action_response_adapter(func))
     } else {
-        block_on(zbus_rs::handle_action(id, func));
+        block_on(zbus_rs::handle_action(id, action_response_adapter(func)));
+        Ok(())
     }
 }
 
-/// Reason passed to `NotificationClosed` Signal
-///
-/// ## Specification
-/// As listed under [Table 8. `NotificationClosed` Parameters](https://specifications.freedesktop.org/notification-spec/latest/ar01s09.html#idm46350804042704)
-#[derive(Copy, Clone, Debug)]
-pub enum CloseReason {
-    /// The notification expired
-    Expired,
-    /// The notification was dismissed by the user
-    Dismissed,
-    /// The notification was closed by a call to `CloseNotification`
-    CloseAction,
-    /// Undefined/Reserved reason
-    Other(u32),
-}
-
-impl From<u32> for CloseReason {
-    fn from(raw_reason: u32) -> Self {
-        match raw_reason {
-            1 => CloseReason::Expired,
-            2 => CloseReason::Dismissed,
-            3 => CloseReason::CloseAction,
-            other => CloseReason::Other(other),
-        }
-    }
-}
-
-/// Helper Trait implemented by `Fn()`
-pub trait ActionResponseHandler {
-    fn call(self, response: &ActionResponse);
-}
-
-// impl<F: Send + Sync + 'static> ActionResponseHandler for F
-impl<F> ActionResponseHandler for F
+/// Wraps an old-style `FnOnce(&ActionResponse)` into a new-style `FnOnce(&NotificationResponse)`
+/// so legacy callers of [`handle_action`] keep working.
+fn action_response_adapter<F>(func: F) -> impl FnOnce(&NotificationResponse)
 where
-    F: FnOnce(&ActionResponse),
+    F: FnOnce(&ActionResponse<'_>),
 {
-    fn call(self, res: &ActionResponse) {
-        (self)(res);
-    }
-}
-
-/// Response to an action
-pub enum ActionResponse<'a> {
-    /// Custom Action configured by the Notification.
-    Custom(&'a str),
-
-    /// The Notification was closed.
-    Closed(CloseReason),
-}
-
-impl<'a> From<&'a str> for ActionResponse<'a> {
-    fn from(raw: &'a str) -> Self {
-        Self::Custom(raw)
-    }
-}
-
-/// Your handy callback for the `Close` signal of your Notification.
-///
-/// This is implemented by `Fn()` and `Fn(CloseReason)`, so there is probably no good reason for you to manually implement this trait.
-/// Should you find one anyway, please notify me and I'll gladly remove this obviously redundant comment.
-pub trait CloseHandler<T> {
-    /// This is called with the [`CloseReason`].
-    fn call(&self, reason: CloseReason);
-}
-
-impl<F> CloseHandler<CloseReason> for F
-where
-    F: Fn(CloseReason),
-{
-    fn call(&self, reason: CloseReason) {
-        self(reason);
-    }
-}
-
-impl<F> CloseHandler<()> for F
-where
-    F: Fn(),
-{
-    fn call(&self, _: CloseReason) {
-        self();
+    move |response: &NotificationResponse| match response {
+        NotificationResponse::Default => func(&ActionResponse::Custom("default")),
+        NotificationResponse::Action(ref s) => func(&ActionResponse::Custom(s.as_str())),
+        NotificationResponse::Reply(_) => { /* XDG does not support inline replies */ }
+        NotificationResponse::Closed(r) => func(&ActionResponse::Closed(*r)),
     }
 }

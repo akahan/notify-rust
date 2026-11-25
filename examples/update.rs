@@ -23,7 +23,7 @@ fn update_via_handle() {
         .icon("dialog-ok")
         .body("<b>This</b> has been changed through the notification_handle");
 
-    notification_handle.update();
+    notification_handle.update().unwrap();
 }
 
 #[allow(dead_code)]
@@ -54,7 +54,7 @@ fn recycling_one_id() {
         std::thread::sleep(Duration::from_millis(500));
         Notification::new()
             .icon("dialog-ok")
-            .body(&format!("notification{}", i))
+            .body(&format!("notification{i}"))
             .id(id)
             .show()
             .unwrap();

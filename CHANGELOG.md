@@ -1,6 +1,176 @@
 # Changelog
 
-## [v4.11.0](https://github.com/hoodie/notify-rust/compare/v4.10.0...v4.11.0) (2024-04-04)
+## [v4.19.0](https://github.com/hoodie/notify-rust/compare/v4.18.2...v4.19.0) (2026-11-08)
+
+### Features
+
+* **macos:** add NsNotificationExt for close button and actions label
+([1ae865e](https://github.com/hoodie/notify-rust/commit/1ae865e469ba4fb810a7de72a4a57c67bfe142c9))
+* **macos:** add inline reply support
+([d311c2a](https://github.com/hoodie/notify-rust/commit/d311c2a78ac276e5ed4dc3fb20e2dac20688f7e8))
+
+### Fixes
+
+* **deps:** bump zbus to 6 and add nightly compile check
+([fcf3ce7](https://github.com/hoodie/notify-rust/commit/fcf3ce700cac717b4648e5c0ec729f741c5a6b57))
+* **macos:** wait for click in wait_for_action/wait_for_response without
+([f1eec5c](https://github.com/hoodie/notify-rust/commit/f1eec5c35735788550c09f1afc77838f43491758))
+
+### [v4.18.2](https://github.com/hoodie/notify-rust/compare/v4.18.1...v4.18.2) (2026-10-07)
+
+#### Fixes
+
+* re-export `NotificationHandle` for `windows`
+([cb0d07e](https://github.com/hoodie/notify-rust/commit/cb0d07ec08377499c44cdbf027250ab7378024a6))
+
+### [v4.18.1](https://github.com/hoodie/notify-rust/compare/v4.18.0...v4.18.1) (2026-09-27)
+
+#### Fixes
+
+* **deps:** update rust crate winrt-notification to 0.8
+([ecf7bfa](https://github.com/hoodie/notify-rust/commit/ecf7bfa346d20be1bd571a76dd90159baa7cb5f6))
+
+## [v4.18.0](https://github.com/hoodie/notify-rust/compare/v4.17.0...v4.18.0) (2026-06-16)
+
+### Features
+
+* add common wait_for_response on all platforms
+([b20c59c](https://github.com/hoodie/notify-rust/commit/b20c59c9dd4db0d83c99dc37ebda1f550334f27b))
+* add wait_for_actions and on_close using mac-notification-sys
+([2627ef7](https://github.com/hoodie/notify-rust/commit/2627ef772b792f9e1660dfc611b4ea026054329c))
+* **macos:** add mac-usernotifications backend
+([602cd5f](https://github.com/hoodie/notify-rust/commit/602cd5f2c22b72c85f3895ad95543b38dc966a0b))
+* add common response types
+([25994d5](https://github.com/hoodie/notify-rust/commit/25994d58e0ea97a34ff31de8fbcee72d927c4290))
+* add Windows notification handles
+([eaaa540](https://github.com/hoodie/notify-rust/commit/eaaa5404da373727c4902d31456dae005afb7348))
+
+## [v4.17.0](https://github.com/hoodie/notify-rust/compare/v4.16.1...v4.17.0) (2026-05-05)
+
+### Features
+
+* return Result from update() instead of panicking on D-Bus errors
+([10d049b](https://github.com/hoodie/notify-rust/commit/10d049b4dfd3ea168379c01055922af815049e59))
+
+### [v4.16.1](https://github.com/hoodie/notify-rust/compare/v4.16.0...v4.16.1) (2026-04-29)
+
+#### Fixes
+
+* return Result from handle_action instead of panicking on D-Bus errors
+([dbd4fd6](https://github.com/hoodie/notify-rust/commit/dbd4fd678e5aa9341f7cbc36c6610544496ef725)),
+closes [#54](https://github.com/hoodie/notify-rust/issues/54)
+
+## [v4.16.0](https://github.com/hoodie/notify-rust/compare/v4.15.0...v4.16.0) (2026-04-19)
+
+### Features
+
+* add `images_no_default_features` crate feature for downstream users wishing
+to manually specify `image` sub-features.
+([6a42dd0](https://github.com/hoodie/notify-rust/commit/6a42dd0b2b335115f7dec5fda45b0cf8f3937cf3))
+
+## [v4.15.0](https://github.com/hoodie/notify-rust/compare/v4.14.0...v4.15.0) (2026-04-14)
+
+### Features
+
+* add non-blocking `wait_for_action_async`
+([9f3613c](https://github.com/hoodie/notify-rust/commit/9f3613c7d1b2bad5b00203fd2d6a18c37f01584a))
+
+## [v4.14.0](https://github.com/hoodie/notify-rust/compare/v4.13.1...v4.14.0) (2026-04-06)
+
+### Features
+
+* add urgency support for Windows
+([bb48726](https://github.com/hoodie/notify-rust/commit/bb48726aff7a4559fac046da908cb01b3466f60f))
+
+### [v4.13.1](https://github.com/hoodie/notify-rust/compare/v4.13.0...v4.13.1) (2026-04-04)
+
+#### Fixes
+
+* update maintenance state and formatting in README
+([efafd19](https://github.com/hoodie/notify-rust/commit/efafd19371f4628a3b5a4232061562c24630b702))
+
+## [v4.13.0](https://github.com/hoodie/notify-rust/compare/v4.12.0...v4.13.0) (2026-04-04)
+
+### Features
+
+* **macos:** forward image_path to content_image in notifications
+([959bcae](https://github.com/hoodie/notify-rust/commit/959bcae8f9a7e08d531322290d1cb252452e3a07))
+* **macos:** add image_path field and method
+([1351bf2](https://github.com/hoodie/notify-rust/commit/1351bf27486a98bbb07236f25c7bbc94b2dbc122))
+
+## [v4.12.0](https://github.com/hoodie/notify-rust/compare/v4.11.7...v4.12.0) (2026-02-01)
+
+### Features
+
+* add `z-with-tokio` feature (#245)
+([895280c](https://github.com/hoodie/notify-rust/commit/895280c0209786f87bb7dbaf751561bed13eb4cd)),
+closes [#245](https://github.com/hoodie/notify-rust/issues/245)
+
+### Fixes
+
+* **zbus:** don't unwrap result of close_fallible
+([d0c0d84](https://github.com/hoodie/notify-rust/commit/d0c0d8448771afca9902bb6ddcc65b823f4cdf0c)),
+closes [#253](https://github.com/hoodie/notify-rust/issues/253)
+
+### [v4.11.7](https://github.com/hoodie/notify-rust/compare/v4.11.6...v4.11.7) (2025-04-08)
+
+#### Fixes
+
+* **deps:** update rust crate winrt-notification to 0.7 (#220)
+([6411aec](https://github.com/hoodie/notify-rust/commit/6411aec798fab664f984ac60bd40ae6b41e19011)),
+closes [#220](https://github.com/hoodie/notify-rust/issues/220)
+
+### [v4.11.6](https://github.com/hoodie/notify-rust/compare/v4.11.5...v4.11.6) (2025-03-28)
+
+#### Fixes
+
+* resolve type inference issue with u32::MAX conversion (#244)
+([0c6c3ff](https://github.com/hoodie/notify-rust/commit/0c6c3ff251dbb32df6d45446940820d2f5d8e375)),
+closes [#244](https://github.com/hoodie/notify-rust/issues/244)
+
+### [v4.11.5](https://github.com/hoodie/notify-rust/compare/v4.11.4...v4.11.5) (2025-02-10)
+
+#### Fixes
+
+* **deps:** broken zbus export
+([354d5a8](https://github.com/hoodie/notify-rust/commit/354d5a8c7072e46aeba41a7e1991e2d780b6ad6a)),
+closes [#236](https://github.com/hoodie/notify-rust/issues/236)
+
+### [v4.11.4](https://github.com/hoodie/notify-rust/compare/v4.11.3...v4.11.4) (2025-01-12)
+
+#### Fixes
+
+* **deps:** update rust crate zbus to v5
+([0834adc](https://github.com/hoodie/notify-rust/commit/0834adc4635c72420ab52cb58ef573004693cab8))
+
+### [v4.11.3](https://github.com/hoodie/notify-rust/compare/v4.11.2...v4.11.3) (2024-09-11)
+
+#### Fixes
+
+* update build badge
+([c0ffeed](https://github.com/hoodie/notify-rust/commit/c0ffeed9455244f616ae738d2ac009e66fc2513a))
+
+### [v4.11.2](https://github.com/hoodie/notify-rust/compare/v4.11.1...v4.11.2) (2024-09-10)
+
+#### Fixes
+
+* **docs:** update links to Hints specification
+([6312e9c](https://github.com/hoodie/notify-rust/commit/6312e9c2273150d8c844c4725bf9ad29b3ac6021))
+* **docs:** link warning
+([6edff02](https://github.com/hoodie/notify-rust/commit/6edff02d5450b9ae13f8271f32685fe9bca64404))
+* more precise dependency on lazy_static
+([c24169e](https://github.com/hoodie/notify-rust/commit/c24169ef76b2b0be6d2acb4e6b4b445161a19d49))
+
+### [v4.11.1](https://github.com/hoodie/notify-rust/compare/v4.11.0...v4.11.1) (2024-08-01)
+
+#### Fixes
+
+* **docs:** make sure crates.io and readme are in sync
+([2bd2a2c](https://github.com/hoodie/notify-rust/commit/2bd2a2ce94aa9941040a939244ac3798f3a0110d))
+* update maintenance badge
+([789fe44](https://github.com/hoodie/notify-rust/commit/789fe44140416837812889c5cdc0b64ac81f26b7))
+
+## [v4.11.0](https://github.com/hoodie/notify-rust/compare/v4.10.0...v4.11.0) (2024-04-05)
 
 ### Features
 
@@ -192,7 +362,7 @@ closes [#104](https://github.com/hoodie/notify-rust/issues/104)
 * make zbus backend the default
 ([582b87e](https://github.com/hoodie/notify-rust/commit/582b87ec85647e66058f1857bc0a169411ebeb3b))
 
-### [v4.2.2](https://github.com/hoodie/notify-rust/compare/v4.2.1...v4.2.2) (2021-01-08)
+### [v4.2.2](https://github.com/hoodie/notify-rust/compare/v4.2.1...v4.2.2) (2021-01-09)
 
 #### Fixes
 
@@ -330,9 +500,9 @@ closes [#69](https://github.com/hoodie/notify-rust/issues/69)
 
 ### [v1.0.1](https://github.com/hoodie/notify-rust/compare/v1.0.0...v1.0.1) (2015-07-19)
 
-## [v1.0.0](https://github.com/hoodie/notify-rust/compare/v0.9.0...v1.0.0) (2015-07-12)
+## [v1.0.0](https://github.com/hoodie/notify-rust/compare/v0.9.0...v1.0.0) (2015-07-13)
 
-## [v0.9.0](https://github.com/hoodie/notify-rust/compare/v0.8.0...v0.9.0) (2015-06-30)
+## [v0.9.0](https://github.com/hoodie/notify-rust/compare/v0.8.0...v0.9.0) (2015-07-01)
 
 ## [v0.8.0](https://github.com/hoodie/notify-rust/compare/v0.0.8...v0.8.0) (2015-06-19)
 

@@ -1,13 +1,16 @@
 #![allow(missing_docs)]
 
-#[cfg(all(feature = "images", unix, not(target_os = "macos")))]
+#[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
 use crate::image::ImageError;
 use std::{fmt, num};
 /// Convenient wrapper around `std::Result`.
 pub type Result<T> = std::result::Result<T, Error>;
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", not(feature = "preview-macos-un")))]
 pub use crate::macos::{ApplicationError, MacOsError, NotificationError};
+
+#[cfg(all(target_os = "macos", feature = "preview-macos-un"))]
+pub use crate::macos::MacOsError;
 
 /// The Error type.
 #[derive(Debug)]
@@ -15,11 +18,11 @@ pub struct Error {
     kind: ErrorKind,
 }
 
-/// The kind of an error.
+/// The kind of an error used by [`Error`].
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ErrorKind {
-    /// only here for backwards compatibility
+    /// Only here for backwards compatibility.
     Msg(String),
 
     #[cfg(all(feature = "dbus", unix, not(target_os = "macos")))]
@@ -31,13 +34,16 @@ pub enum ErrorKind {
     #[cfg(target_os = "macos")]
     MacNotificationSys(mac_notification_sys::error::Error),
 
+    #[cfg(all(target_os = "macos", feature = "preview-macos-un"))]
+    MacUserNotifications(mac_usernotifications::Error),
+
     Parse(num::ParseIntError),
 
     SpecVersion(String),
 
     Conversion(String),
 
-    #[cfg(all(feature = "images", unix, not(target_os = "macos")))]
+    #[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
     Image(ImageError),
 
     ImplementationMissing,
@@ -53,12 +59,15 @@ impl fmt::Display for Error {
             ErrorKind::Zbus(ref e) => write!(f, "{}", e),
 
             #[cfg(target_os = "macos")]
-            ErrorKind::MacNotificationSys(ref e) => write!(f, "{}", e),
+            ErrorKind::MacNotificationSys(ref e) => write!(f, "{e}"),
 
-            ErrorKind::Parse(ref e) => write!(f, "Parsing Error: {}", e),
-            ErrorKind::Conversion(ref e) => write!(f, "Conversion Error: {}", e),
-            ErrorKind::SpecVersion(ref e) | ErrorKind::Msg(ref e) => write!(f, "{}", e),
-            #[cfg(all(feature = "images", unix, not(target_os = "macos")))]
+            #[cfg(all(target_os = "macos", feature = "preview-macos-un"))]
+            ErrorKind::MacUserNotifications(ref e) => write!(f, "{e}"),
+
+            ErrorKind::Parse(ref e) => write!(f, "Parsing Error: {e}"),
+            ErrorKind::Conversion(ref e) => write!(f, "Conversion Error: {e}"),
+            ErrorKind::SpecVersion(ref e) | ErrorKind::Msg(ref e) => write!(f, "{e}"),
+            #[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
             ErrorKind::Image(ref e) => write!(f, "{}", e),
             ErrorKind::ImplementationMissing => write!(
                 f,
@@ -105,11 +114,20 @@ impl From<mac_notification_sys::error::Error> for Error {
     }
 }
 
-#[cfg(all(feature = "images", unix, not(target_os = "macos")))]
+#[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
 impl From<ImageError> for Error {
     fn from(e: ImageError) -> Error {
         Error {
             kind: ErrorKind::Image(e),
+        }
+    }
+}
+
+#[cfg(all(target_os = "macos", feature = "preview-macos-un"))]
+impl From<mac_usernotifications::Error> for Error {
+    fn from(e: mac_usernotifications::Error) -> Error {
+        Error {
+            kind: ErrorKind::MacUserNotifications(e),
         }
     }
 }

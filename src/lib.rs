@@ -28,6 +28,7 @@
 //!
 //! ```no_run
 //! # use notify_rust::*;
+//! # #[cfg(all(unix, not(target_os = "macos")))]
 //! Notification::new()
 //!     .summary("Category:email")
 //!     .body("This has nothing to do with emails.\nIt should not go away until you acknowledge it.")
@@ -194,6 +195,8 @@ mod xdg;
 #[cfg(all(feature = "images_no_default_features", unix, not(target_os = "macos")))]
 mod image;
 
+#[cfg(target_os = "macos")]
+pub use macos::IconType;
 #[cfg(all(target_os = "macos", not(feature = "preview-macos-un")))]
 pub use macos::NotificationHandle;
 #[cfg(target_os = "macos")]
@@ -204,9 +207,6 @@ pub use macos::{
     check_bundle, get_notification_settings, get_notification_settings_blocking, request_auth,
     request_auth_blocking, NotificationHandle,
 };
-
-#[cfg(target_os = "macos")]
-pub use macos::{NotificationHandle, IconType};
 
 #[cfg(all(
     any(feature = "dbus", feature = "zbus"),

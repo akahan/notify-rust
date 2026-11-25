@@ -15,6 +15,9 @@ mod realworld {
     });
 
     #[test]
+    // UNUserNotificationCenter требует app bundle с идентификатором,
+    // из голого тестового бинарника уведомление не отправить.
+    #[cfg(not(all(target_os = "macos", feature = "preview-macos-un")))]
     fn burst() {
         for msg in &[
             "These should each",
@@ -97,6 +100,9 @@ mod realworld {
     }
 
     #[test]
+    // UNUserNotificationCenter требует app bundle с идентификатором,
+    // из голого тестового бинарника уведомление не отправить.
+    #[cfg(not(all(target_os = "macos", feature = "preview-macos-un")))]
     fn init() {
         let mut message = Notification::new();
         message.summary("invocation type 2");

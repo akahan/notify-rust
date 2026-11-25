@@ -15,6 +15,7 @@ use crate::error::ErrorKind;
 /// ```no_run
 /// # use notify_rust::*;
 /// # fn _doc() -> Result<(), Box<dyn std::error::Error>> {
+/// # #[cfg(any(all(unix, not(target_os = "macos")), target_os = "windows"))]
 /// Notification::new()
 ///     .summary("oh no")
 ///     .icon("dialog-warning")

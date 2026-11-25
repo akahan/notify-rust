@@ -1,6 +1,9 @@
 mod ns_ext;
 pub use ns_ext::NsNotificationExt;
 
+mod icon;
+pub use icon::IconType;
+
 /// `NSUserNotificationCenter` backend.
 #[cfg(not(feature = "preview-macos-un"))]
 mod nsusernotifications;

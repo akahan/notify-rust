@@ -3,7 +3,6 @@ use crate::CloseReason;
 pub use crate::{error::*, notification::Notification, timeout::Timeout, urgency::Urgency};
 
 use std::{
-    ops,
     ops::{Deref, DerefMut},
     path::Path,
     str::FromStr,
@@ -12,6 +11,12 @@ use std::{
 
 use winrt_notification::{Toast, ToastDismissalReason};
 
+/// Тип иконки для уведомлений Windows.
+///
+/// Оборачивает путь или имя ресурса иконки и способ её обрезки
+/// ([`IconCrop`]), которые передаются в toast-уведомление.
+/// Строится из `&str`/`String` (квадратная обрезка) или кортежа
+/// `(строка, IconCrop)`.
 #[derive(Clone, Debug, Default)]
 pub struct IconType(pub String, pub IconCrop);
 
@@ -39,7 +44,7 @@ impl From<(&str, IconCrop)> for IconType {
     }
 }
 
-impl ops::Deref for IconType {
+impl Deref for IconType {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -47,16 +52,19 @@ impl ops::Deref for IconType {
     }
 }
 
+/// Способ обрезки иконки toast-уведомления Windows.
 #[derive(Debug, Clone, Copy, Default)]
 pub enum IconCrop {
+    /// Квадратная иконка (значение по умолчанию).
     #[default]
     Square,
+    /// Круглая иконка.
     Circular,
 }
 
-impl Into<winrt_notification::IconCrop> for IconCrop {
-    fn into(self) -> winrt_notification::IconCrop {
-        match self {
+impl From<IconCrop> for winrt_notification::IconCrop {
+    fn from(value: IconCrop) -> Self {
+        match value {
             IconCrop::Square => winrt_notification::IconCrop::Square,
             IconCrop::Circular => winrt_notification::IconCrop::Circular,
         }
@@ -134,7 +142,7 @@ fn build_toast(notification: &Notification) -> Toast {
         .title(&notification.summary)
         .text1(notification.subtitle.as_ref().map_or("", AsRef::as_ref)) // subtitle
         .text2(&notification.body)
-        .icon(&Path::new(&notification.icon.0), notification.icon.1.into(), "")
+        .icon(Path::new(&notification.icon.0), notification.icon.1.into(), "")
         .sound(sound)
         .duration(duration);
 
